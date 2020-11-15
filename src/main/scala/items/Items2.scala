@@ -39,11 +39,17 @@ object Items2 extends App {
   // Idealmente dovrebbe essere un oggetto che codifica le modifiche da fare
   // al player, all'environment, allo spazio, a tutto.
   trait Event
-  case class Store(item: Item) extends Event
-  case class RefillHealth(value: Int, player: Player) extends Event
-  case class Hit(what: Item) extends Event
 
-  trait Item {
+  object Events {
+    case class Store(item: Item) extends Event
+    case class RefillHealth(value: Int, player: Player) extends Event
+    case class Hit(what: Entity) extends Event
+    case class LoseHealth(value: Int) extends Event
+  }
+
+
+  trait Entity
+  trait Item extends Entity {
     def use(action: TransitiveAction): Option[Event]
   }
 
@@ -60,7 +66,7 @@ object Items2 extends App {
   }
 
   def canBeStored: Property = {
-    case (Actions.Take, item) => Store(item)
+    case (Actions.Take, item) => Events.Store(item)
   }
 
   def custom(action: TransitiveAction)(createEvent: (Item, Context) => Event)(implicit context: Context): Property = {
@@ -70,15 +76,20 @@ object Items2 extends App {
 //  def food(createEvent: Context => Event)(implicit context: Context): Property = {
 //    case (Actions.Eat, _) => createEvent(context)
 //  }
-  def food(createEvent: (Item, Context) => Event)(implicit context: Context): Property =
+  def food(createEvent: (Item, Context) => Event): Property =
     custom(Actions.Eat)(createEvent)
 
   val apple = Item.byProperties(
     canBeStored,
-    food { case (_, Context(player)) => RefillHealth(10, player) },
+    food { case (_, Context(player)) => Events.RefillHealth(10, player) },
     custom(Actions.Hit) { case (item, _) =>
-      Hit(item)
+      Events.Hit(item)
     }
+  )
+
+  val badApple = Item.byProperties(
+    canBeStored,
+    food { case (_, Context(player)) => Events.LoseHealth(30) }
   )
 
   case class ResolverResult(
@@ -87,10 +98,15 @@ object Items2 extends App {
     item: Item
   )
 
+
+
   def interpreter(resolverResult: ResolverResult)(implicit context: Context): Either[String, Event] = {
     val ResolverResult(action, _, item) = resolverResult
     (item use action).toRight("You can't do such action.")
   }
+
+  // Simuliamo la fase in cui abbiamo già effettuato il parsing e la risoluzione dei link.
+  // ResolverResult(Actions.Take, myContext.player, apple)
 
   println(interpreter(ResolverResult(Actions.Take, myContext.player, apple)))
   println(interpreter(ResolverResult(Actions.Eat, myContext.player, apple)))
