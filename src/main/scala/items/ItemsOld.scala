@@ -1,6 +1,6 @@
 package items
 
-object Items extends App {
+object ItemsOld extends App {
 
   trait Player {
     def bag: Set[Item]
